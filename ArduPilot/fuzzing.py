@@ -30,6 +30,7 @@ import math
 from optparse import OptionParser
 import sys, os, getopt
 
+random.seed(0)
 # ------------------------------------------------------------------------------------
 # Global variables
 master = mavutil.mavlink_connection('udp:127.0.0.1:14550')
