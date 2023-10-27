@@ -4,7 +4,6 @@ from subprocess import *
 import time
 import os
 import signal
-import psutil
 
 #subprocess.call(['~/ardupilot_4_0_3/Tools/autotest/sim_vehicle.py -v ArduCopter --console --map -w'], shell=True)
 
@@ -21,20 +20,23 @@ handle = Popen(c, shell=True)
 
 #os.killpg(os.getpgid(handle.pid), signal.SIGTERM)
 
+print("start monitoring reboot value")
 while True:
 	
-
 	f = open("shared_variables.txt", "r")
 	
 	if f.read() == "reboot":
-
+		print("reboot")
+		f.close()
 		open("shared_variables.txt", "w").close()	
-		
 		fi = open("restart.txt", "w")
 		fi.write("restart")
 		fi.close()
 
-		os.killpg(os.getpgid(handle.pid), signal.SIGTERM)
+		os.killpg(os.getpgid(handle.pid), signal.SIGKILL)
+		break
+	else:
+		f.close()
 	
 	time.sleep(1)
 

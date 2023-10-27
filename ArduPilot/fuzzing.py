@@ -32,7 +32,7 @@ import sys, os, getopt
 
 # ------------------------------------------------------------------------------------
 # Global variables
-master = mavutil.mavlink_connection('udp:127.0.0.1:14551')
+master = mavutil.mavlink_connection('udp:127.0.0.1:14550')
 home_altitude = 0
 home_lat = 0
 home_lon = 0
@@ -168,26 +168,33 @@ Precondition_path = ""
 Current_policy = "A.FLIP1"
 Current_policy_P_length = 5
 
+Sleep_time = 0
+
 # Debug parameter
 PRINT_DEBUG = 0
+
+# Reboot sig
+
+REBOOT_SIG = 0
 # ------------------------------------------------------------------------------------
 # ------------------------------------------------------------------------------------
 # If the RV does not response within 5 seconds, we consider the RV's program crashed.
 def check_liveness():
     global heartbeat_cnt
+    global REBOOT_SIG
 
     end_flag = 0
     while end_flag == 0:
-
-        if heartbeat_cnt < 1:
-            store_mutated_inputs()
-            # The RV software is crashed
-            f = open("shared_variables.txt", "w")
-            f.write("reboot")
-            f.close()
-            end_flag = 1
-        else:
-            heartbeat_cnt = 0
+        if REBOOT_SIG == 0:
+            if heartbeat_cnt < 1:
+                store_mutated_inputs(liveness_sig=False, guid="true")
+                # The RV software is crashed
+                f = open("shared_variables.txt", "w")
+                f.write("reboot")
+                f.close()
+                end_flag = 1
+            else:
+                heartbeat_cnt = 0
 
         time.sleep(5)
 
@@ -198,7 +205,7 @@ def set_preconditions(filepath):
         row = line.rstrip().split(' ')
 
         master.mav.param_set_send(master.target_system, master.target_component,
-                                  row[0],
+                                  row[0].encode('utf-8'),
                                   float(row[1]),
                                   mavutil.mavlink.MAV_PARAM_TYPE_REAL32)
         time.sleep(1)
@@ -257,6 +264,8 @@ def re_launch():
     Baro_status = 1
     PreArm_error = 0
 
+    global REBOOT_SIG
+    REBOOT_SIG = 1
     print("#-----------------------------------------------------------------------------")
     print("#-----------------------------------------------------------------------------")
     print("#------------------------- RE-LAUNCH the vehicle -----------------------------")
@@ -292,6 +301,7 @@ def re_launch():
     time.sleep(3)
 
     # Step 2. Reboot the RV's control program
+    print("start rebooting")
     f = open("shared_variables.txt", "w")
     f.write("reboot")
     f.close()
@@ -300,6 +310,9 @@ def re_launch():
 
     mutated_log = open("mutated_log.txt", "w")
     mutated_log.close()
+
+    distance_log = open("distance_log.txt", "w")
+    distance_log.close()
 
     # Step 3. reset preconditions to fuzz the target policy
     global Precondition_path
@@ -342,8 +355,10 @@ def re_launch():
         0,  # param6
         100)  # param7- altitude
 
-    time.sleep(25)
+    time.sleep(40)
     goal_throttle = 1500
+
+    REBOOT_SIG = 0
 
 
 # ------------------------------------------------------------------------------------
@@ -362,7 +377,7 @@ def verify_real_number(item):
 
 
 # ------------------------------------------------------------------------------------
-def change_parameter(selected_param):
+def change_parameter(selected_param, sleep_time):
     global Guidance_decision
     global Current_input
     global Current_input_val
@@ -413,7 +428,7 @@ def change_parameter(selected_param):
 
     # 2) Set parameter value
     master.mav.param_set_send(master.target_system, master.target_component,
-                              param_name,
+                              param_name.encode('utf-8'),
                               param_value,
                               mavutil.mavlink.MAV_PARAM_TYPE_REAL32)
 
@@ -427,6 +442,8 @@ def change_parameter(selected_param):
     print_param += param_name
     print_param += " "
     print_param += str(param_value)
+    print_param += " sleep_time:"
+    print_param += str(sleep_time)
     print_param += "\n"
 
     write_log(print_param)
@@ -616,7 +633,7 @@ def handle_param(msg):
     global target_param_value
 
     message = msg.to_dict()
-    if message['param_id'].decode("utf-8") == target_param:
+    if message['param_id'] == target_param:
         target_param_ready = 1
         target_param_value = message['param_value']
     else:
@@ -802,7 +819,9 @@ def read_loop():
 # --------------------- (End) READ Robotic Vehicle's states ------------------------
 # ------------------------------------------------------------------------------------
 # ------------------------------------------------------------------------------------
-def store_mutated_inputs():
+def store_mutated_inputs(liveness_sig, guid):
+    # if guid == "false":
+    #     return
     global Policy_violation_cnt
     Policy_violation_cnt += 1
 
@@ -815,17 +834,29 @@ def store_mutated_inputs():
     # Store the mutated inputs as a txt file
     # './policies/chute/*.txt'
     file_name = ""
-    file_name += "./policy_violations/"
+    file_name += os.getenv("PGFUZZ_HOME") + "ArduPilot/policy_violations/"
     file_name += str(Policy_violation_cnt)
     file_name += ".txt"
 
-    f2 = open(file_name, "w")
+    f2 = open(file_name, "w")  
     f2.writelines(lines)
     f1.close()
+    f2.close()
+    
+    f3 = open("distance_log.txt", "r")
+    lines = f3.readlines()
+
+    f2 = open(file_name, "a")
+    f2.writelines(lines)
+    if liveness_sig == False:
+        f2.writelines("liveness check fault")  
+    f3.close()
     f2.close()
 
     mutated_log = open("mutated_log.txt", "w")
     mutated_log.close()
+    distance_log = open("distance_log.txt", "w")
+    distance_log.close()
 
 
 # ------------------------------------------------------------------------------------
@@ -840,8 +871,30 @@ def print_distance(G_dist, P_dist, length, policy, guid):
     print('[Distance] Global distance: %f' % Global_distance)
     print("#-----------------------------------------------------------------------------")
 
+    # if guid == "true":
+    #     # 打开文件distance_log.txt以写入模式
+    #     with open('distance_log.txt', 'a') as file:
+        
+    #         str_to_write = ""
+    #         str_to_write += format("#---------------------------------%s-------------------------------------------\n" % policy)
+    #         # 写入策略
+    #         str_to_write += format("#---------------------------------%s-------------------------------------------\n" % policy)
+    #         # 写入距离数据
+    #         str_to_write += format("[Distance] ")
+    #         for i in range(length):
+    #             str_to_write += format("P%d: %f " % (i + 1, P_dist[i]))
+        
+    #         # 写入换行符
+    #         str_to_write += format("\n")
+        
+    #         # 写入全局距离数据
+    #         str_to_write += format('[Distance] Global distance: %f\n' % G_dist)
+    #         str_to_write += format("#-----------------------------------------------------------------------------\n")
+
+    #         file.write(str_to_write)
+
     if G_dist < 0:
-        store_mutated_inputs()
+        store_mutated_inputs(liveness_sig=True, guid=guid)
 
     global Current_policy_P_length
     global Previous_distance
@@ -1095,7 +1148,7 @@ def calculate_distance(guidance):
 
     # P5
     # Request parameter
-    master.mav.param_request_read_send(master.target_system, master.target_component, 'CHUTE_ALT_MIN', -1)
+    master.mav.param_request_read_send(master.target_system, master.target_component, 'CHUTE_ALT_MIN'.encode('utf-8'), -1)
 
     target_param = "CHUTE_ALT_MIN"
     count = 0
@@ -1125,7 +1178,7 @@ def calculate_distance(guidance):
     # P2
     # Request parameter
     master.mav.param_request_read_send(
-        master.target_system, master.target_component, 'RTL_ALT', -1)
+        master.target_system, master.target_component, 'RTL_ALT'.encode('utf-8'), -1)
 
     target_param = "RTL_ALT"
     count = 0
@@ -1169,7 +1222,7 @@ def calculate_distance(guidance):
     # P1: (ALT_t - RTL_ALT)/ALT_t
     # Request parameter
     master.mav.param_request_read_send(
-        master.target_system, master.target_component, 'RTL_ALT', -1)
+        master.target_system, master.target_component, 'RTL_ALT'.encode('utf-8'), -1)
 
     target_param = "RTL_ALT"
     count = 0
@@ -1221,7 +1274,7 @@ def calculate_distance(guidance):
     # P1: (ALT_t - RTL_ALT)/ALT_t
     # Request parameter
     master.mav.param_request_read_send(
-        master.target_system, master.target_component, 'RTL_ALT', -1)
+        master.target_system, master.target_component, 'RTL_ALT'.encode('utf-8'), -1)
 
     target_param = "RTL_ALT"
     count = 0
@@ -1430,7 +1483,7 @@ def calculate_distance(guidance):
 
     # Request parameter
     master.mav.param_request_read_send(
-        master.target_system, master.target_component, 'EK2_ALT_SOURCE', -1)
+        master.target_system, master.target_component, 'EK2_ALT_SOURCE'.encode('utf-8'), -1)
 
     target_param = "EK2_ALT_SOURCE"
     count = 0
@@ -1700,7 +1753,7 @@ def calculate_distance(guidance):
     target_param_value = 0
 
     master.mav.param_request_read_send(
-        master.target_system, master.target_component, 'LAND_SPEED_HIGH', -1)
+        master.target_system, master.target_component, 'LAND_SPEED_HIGH'.encode('utf-8'), -1)
 
     target_param = "LAND_SPEED_HIGH"
     count = 0
@@ -1714,7 +1767,7 @@ def calculate_distance(guidance):
         target_param_ready = 0
 
         master.mav.param_request_read_send(
-            master.target_system, master.target_component, 'WPNAV_SPEED_DN', -1)
+            master.target_system, master.target_component, 'WPNAV_SPEED_DN'.encode('utf-8'), -1)
 
         target_param = "WPNAV_SPEED_DN"
         count = 0
@@ -1762,7 +1815,7 @@ def calculate_distance(guidance):
     target_param_value = 0
 
     master.mav.param_request_read_send(
-        master.target_system, master.target_component, 'LAND_SPEED', -1)
+        master.target_system, master.target_component, 'LAND_SPEED'.encode('utf-8'), -1)
 
     target_param = "LAND_SPEED"
     count = 0
@@ -1866,7 +1919,7 @@ def calculate_distance(guidance):
     target_param_value = 0
 
     master.mav.param_request_read_send(
-        master.target_system, master.target_component, 'SIM_BARO_DISABLE', -1)
+        master.target_system, master.target_component, 'SIM_BARO_DISABLE'.encode('utf-8'), -1)
 
     target_param = "SIM_BARO_DISABLE"
     count = 0
@@ -1905,7 +1958,7 @@ def calculate_distance(guidance):
     target_param_value = 0
 
     master.mav.param_request_read_send(
-        master.target_system, master.target_component, 'FS_THR_VALUE', -1)
+        master.target_system, master.target_component, 'FS_THR_VALUE'.encode('utf-8'), -1)
 
     target_param = "FS_THR_VALUE"
     count = 0
@@ -1940,7 +1993,7 @@ def calculate_distance(guidance):
     target_param_value = 0
 
     master.mav.param_request_read_send(
-        master.target_system, master.target_component, 'FS_THR_VALUE', -1)
+        master.target_system, master.target_component, 'FS_THR_VALUE'.encode('utf-8'), -1)
 
     target_param = "FS_THR_VALUE"
     count = 0
@@ -1981,7 +2034,7 @@ def calculate_distance(guidance):
     target_param_value = 0
 
     master.mav.param_request_read_send(
-        master.target_system, master.target_component, 'PILOT_SPEED_UP', -1)
+        master.target_system, master.target_component, 'PILOT_SPEED_UP'.encode('utf-8'), -1)
 
     target_param = "PILOT_SPEED_UP"
     count = 0
@@ -2095,7 +2148,7 @@ def calculate_distance(guidance):
     target_param_value = 0
 
     master.mav.param_request_read_send(
-        master.target_system, master.target_component, 'FS_EKF_ACTION', -1)
+        master.target_system, master.target_component, 'FS_EKF_ACTION'.encode('utf-8'), -1)
 
     target_param = "FS_EKF_ACTION"
     count = 0
@@ -2176,17 +2229,15 @@ def set_rc_channel_pwm(id, pwm=1500):
 
     # We only have 8 channels
     # https://mavlink.io/en/messages/common.html#RC_CHANNELS_OVERRIDE
-    if id < 9:
-        rc_channel_values = [65535 for _ in range(8)]
+    if id < 18:
+        rc_channel_values = [65535 for _ in range(18)]
         rc_channel_values[id - 1] = pwm
 
         # global master
-
         master.mav.rc_channels_override_send(
             master.target_system,  # target_system
             master.target_component,  # target_component
             *rc_channel_values)  # RC channel list, in microseconds.
-
 
 # ------------------------------------------------------------------------------------
 def throttle_th():
@@ -2229,7 +2280,7 @@ def match_cmd(cmd):
 
 
 # ------------------------------------------------------------------------------------
-def execute_cmd(num):
+def execute_cmd(num, sleep_time):
     global Current_input
     global Current_input_val
     global Guidance_decision
@@ -2335,12 +2386,14 @@ def execute_cmd(num):
     print_cmd += Current_input
     print_cmd += " "
     print_cmd += Current_input_val
+    print_cmd += " sleep_time:"
+    print_cmd += str(sleep_time)
     print_cmd += "\n"
     write_log(print_cmd)
 
 
 # ------------------------------------------------------------------------------------
-def execute_env(num):
+def execute_env(num, sleep_time):
     global Current_input
     global Current_input_val
     global Guidance_decision
@@ -2359,7 +2412,7 @@ def execute_env(num):
         print("@@@[Reuse stored input pair] (%s, %s)@@@" % (Current_input, Current_input_val))
 
     master.mav.param_set_send(master.target_system, master.target_component,
-                              Current_input,
+                              Current_input.encode('utf-8'),
                               float(Current_input_val),
                               mavutil.mavlink.MAV_PARAM_TYPE_REAL32)
 
@@ -2371,12 +2424,14 @@ def execute_env(num):
     print_env += Current_input
     print_env += " "
     print_env += Current_input_val
+    print_env += " sleep_time:"
+    print_env += str(sleep_time)
     print_env += "\n"
     write_log(print_env)
 
 
 # ------------------------------------------------------------------------------------
-def pick_up_cmd():
+def pick_up_cmd(sleep_time):
     global Current_input
     global Current_input_val
     global Guidance_decision
@@ -2401,15 +2456,15 @@ def pick_up_cmd():
 
     # 1) User commands
     if input_type == 1:
-        execute_cmd(num=random.randint(0, len(read_inputs.cmd_name) - 1))
+        execute_cmd(num=random.randint(0, len(read_inputs.cmd_name) - 1), sleep_time=sleep_time)
 
     # 2) Parameters
     elif input_type == 2:
-        change_parameter(selected_param=random.randint(0, len(read_inputs.param_name) - 1))
+        change_parameter(selected_param=random.randint(0, len(read_inputs.param_name) - 1), sleep_time=sleep_time)
 
     # 3) Environmental factors
     elif input_type == 3:
-        execute_env(num=random.randint(0, len(read_inputs.env_name) - 1))
+        execute_env(num=random.randint(0, len(read_inputs.env_name) - 1), sleep_time=sleep_time)
 
 # ------------------------------------------------------------------------------------
 # ------------------------------------------------------------------------------------
@@ -2422,7 +2477,7 @@ def main(argv):
     # Parsing parameters
     # Update the below path according to a changed target policy
     f_path_def = ""
-    f_path_def += "./policies/"
+    f_path_def += os.getenv("PGFUZZ_HOME") + 'ArduPilot/policies/'
     f_path_def += Current_policy
 
     print("#-----------------------------------------------------------------------------")
@@ -2523,7 +2578,7 @@ def main(argv):
 
         print(mavutil.mavlink.enums['MAV_RESULT'][ack_msg['result']].description)
         break
-
+    
     time.sleep(1)
 
     master.mav.command_long_send(
@@ -2549,12 +2604,14 @@ def main(argv):
         break
 
     # This is for testing A.RTL1
-    time.sleep(25)
+    time.sleep(40)
     # time.sleep(3)
 
 
     # Maintain mid-position of stick on RC controller
-    goal_throttle = 1500
+    global goal_throttle
+    goal_throttle = 1500    
+    
     t1 = threading.Thread(target=throttle_th, args=())
     t1.daemon = True
     t1.start()
@@ -2567,6 +2624,22 @@ def main(argv):
     # Set default throttle
     set_rc_channel_pwm(3, 1500)
 
+    # # 订阅RC_CHANNELS消息
+    # master.mav.request_data_stream_send(
+    #     master.target_system,   # 目标系统ID
+    #     master.target_component,  # 目标组件ID
+    #     mavutil.mavlink.MAV_DATA_STREAM_RC_CHANNELS,  # 数据流类型
+    #     100,  # 请求间隔（ms），根据需要更改
+    #     1  # 启用数据流
+    # )
+
+    # while True:
+    #     msg = master.recv_msg()
+    #     if msg is not None and msg.get_type() == 'RC_CHANNELS':
+    #         # 提取RC通道3的值
+    #         rc_channel_3_value = msg.chan3_raw
+    #         print(f"RC Channel 3 Value: {rc_channel_3_value}")
+
     time.sleep(3)
 
     t2 = threading.Thread(target=read_loop, args=())
@@ -2576,12 +2649,15 @@ def main(argv):
     mutated_log = open("mutated_log.txt", "w")
     mutated_log.close()
 
+    distance_log = open("distance_log.txt", "w")
+    distance_log.close()
+
     guidance_log = open("guidance_log.txt", "w")
     guidance_log.close()
 
     # Set some preconditions to test a policy
     # When I switch to another target policy, I need to update the 'Precondition_path'.
-    Precondition_path += "./policies/"
+    Precondition_path += os.getenv("PGFUZZ_HOME") + 'ArduPilot/policies/'
     Precondition_path += Current_policy
     Precondition_path += "/preconditions.txt"
     set_preconditions(Precondition_path)
@@ -2597,12 +2673,10 @@ def main(argv):
 
         global drone_status
         global executing_commands
-        global home_altitude
         global current_altitude
         global Armed
         global Parachute_on
         global count_main_loop
-        global goal_throttle
         global RV_alive
         global hit_ground
 
@@ -2617,11 +2691,13 @@ def main(argv):
 
             # Calculate propositional and global distances
             calculate_distance(guidance="false")
-
-            pick_up_cmd()
+            global Sleep_time
+            Sleep_time = random.uniform(1.0,8.0)
+            pick_up_cmd(Sleep_time)
 
             # Calculate distances to evaluate effect of the executed input
-            time.sleep(4)
+            time.sleep(Sleep_time)
+            
             calculate_distance(guidance="true")
             goal_throttle = 1500
 
@@ -2632,6 +2708,7 @@ def main(argv):
                 Armed = 0
                 re_launch()
                 count_main_loop = 0
+                time.sleep(2)
 
         # The vehicle is grounded
         elif (drone_status == 3 and RV_alive == 1) or (hit_ground == 1):
@@ -2645,6 +2722,7 @@ def main(argv):
             hit_ground = 0
             re_launch()
             count_main_loop = 0
+            time.sleep(2)
 
         # It is in mayday and going down
         elif drone_status == 6:

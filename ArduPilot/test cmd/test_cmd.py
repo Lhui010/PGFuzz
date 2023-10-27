@@ -105,10 +105,10 @@ def re_launch():
             4)
 
         # Wait for finishing the landing
-        while True:
-                if current_flight_mode == "GUIDED":
-                        break
-                time.sleep(0.2)
+	while True:
+		if current_flight_mode == "GUIDED":
+			break
+		time.sleep(0.2)
 
 	time.sleep(3)
 
@@ -145,11 +145,11 @@ def verify_real_number(item):
 
 	item = str(item).strip()
 	if not(item):
-	    return False
+		return False
 	elif(item.isdigit()):
-	    return True
+		return True
 	elif re.match(r"\d+\.*\d*", item) or re.match(r"-\d+\.*\d*", item):
-	    return True
+		return True
 	else:
 	    return False
 
@@ -192,12 +192,12 @@ def change_parameter():
 
         time.sleep(1)
 	"""
-        # 2) Set parameter value
-        master.mav.param_set_send(master.target_system, master.target_component,
+    # 2) Set parameter value
+	master.mav.param_set_send(master.target_system, master.target_component,
                                 param_name,
                                 param_value,
                                 mavutil.mavlink.MAV_PARAM_TYPE_REAL32)
-        # Read ACK
+    # Read ACK
 	"""
         message = master.recv_match(type='PARAM_VALUE', blocking=True).to_dict()
         print('[Change_parameter()] name: %s\tvalue: %d' % (message['param_id'].decode("utf-8"), message['param_value']))
@@ -238,13 +238,13 @@ def change_wind_dir(value):
 	
         time.sleep(1)
 	"""
-        # Set parameter value
-        if value == 1:
-                wind_dir = random.randint(1, 360)
-        elif value == 0:
-                wind_dir = 180
+    # Set parameter value
+	if value == 1:
+		wind_dir = random.randint(1, 360)
+	elif value == 0:
+		wind_dir = 180
 
-        master.mav.param_set_send(master.target_system, master.target_component,
+	master.mav.param_set_send(master.target_system, master.target_component,
                                 'SIM_WIND_DIR',
                                 wind_dir,
                                 mavutil.mavlink.MAV_PARAM_TYPE_REAL32)
@@ -254,7 +254,7 @@ def change_wind_dir(value):
         print('name: %s\tvalue: %d' % (message['param_id'].decode("utf-8"), message['param_value']))
 	"""
 
-        time.sleep(3)
+	time.sleep(3)
 	"""
         # Request parameter value to confirm
         master.mav.param_request_read_send(master.target_system, master.target_component,'SIM_WIND_DIR',-1)
@@ -264,12 +264,12 @@ def change_wind_dir(value):
         print('(After) name: %s\tvalue: %d' % (message['param_id'].decode("utf-8"), message['param_value']))
 	"""
         # Log mutated user command
-        print_cmd = ""
-        print_cmd += "wind_dir"
-        print_cmd += " "
-        print_cmd += str(wind_dir)
-        print_cmd += "\n"
-        write_log(print_cmd)
+	print_cmd = ""
+	print_cmd += "wind_dir"
+	print_cmd += " "
+	print_cmd += str(wind_dir)
+	print_cmd += "\n"
+	write_log(print_cmd)
 
 #------------------------------------------------------------------------------------
 def change_wind(value):
@@ -306,26 +306,26 @@ def change_wind(value):
 	message = master.recv_match(type='PARAM_VALUE', blocking=True).to_dict()
 	print('(After) name: %s\tvalue: %d' % (message['param_id'].decode("utf-8"), message['param_value']))
 	"""
-        # Log mutated user command
-        print_cmd = ""
-        print_cmd += "wind"
-        print_cmd += " "
-        print_cmd += str(rand_wind)
-        print_cmd += "\n"
-        write_log(print_cmd)
+    # Log mutated user command
+	print_cmd = ""
+	print_cmd += "wind"
+	print_cmd += " "
+	print_cmd += str(rand_wind)
+	print_cmd += "\n"
+	write_log(print_cmd)
 
 #------------------------------------------------------------------------------------
 #---------------------------- (Start) READ STATES OF AP -----------------------------
 def handle_heartbeat(msg):
-        global current_flight_mode
-        current_flight_mode = mavutil.mode_string_v10(msg)
+	global current_flight_mode
+	current_flight_mode = mavutil.mode_string_v10(msg)
 	
-	global drone_status 
+	global drone_status
 	drone_status = msg.system_status
 	print("Drone status: %d, mavlink version: %d" % (drone_status, msg.mavlink_version))
 
-        is_armed = msg.base_mode & mavutil.mavlink.MAV_MODE_FLAG_SAFETY_ARMED
-        is_enabled = msg.base_mode & mavutil.mavlink.MAV_MODE_FLAG_GUIDED_ENABLED
+	is_armed = msg.base_mode & mavutil.mavlink.MAV_MODE_FLAG_SAFETY_ARMED
+	is_enabled = msg.base_mode & mavutil.mavlink.MAV_MODE_FLAG_GUIDED_ENABLED
         #print("Mode: %s" % current_flight_mode)
 
 #------------------------------------------------------------------------------------
@@ -333,23 +333,22 @@ def handle_rc_raw(msg):
 	global current_rc_3
 	current_rc_3 = msg.chan3_raw
 
-        channels = (msg.chan1_raw, msg.chan2_raw, msg.chan3_raw, msg.chan4_raw,
+	channels = (msg.chan1_raw, msg.chan2_raw, msg.chan3_raw, msg.chan4_raw,
                         msg.chan5_raw, msg.chan6_raw, msg.chan7_raw, msg.chan8_raw)
 
 #------------------------------------------------------------------------------------
 def handle_hud(msg):
-        hud_data = (msg.airspeed, msg.groundspeed, msg.heading,
+	hud_data = (msg.airspeed, msg.groundspeed, msg.heading,
                                 msg.throttle, msg.alt, msg.climb)
         #print "Aspd\tGspd\tHead\tThro\tAlt\tClimb"
         #print "%0.2f\t%0.2f\t%0.2f\t%0.2f\t%0.2f\t%0.2f" % hud_data
-
 	print("[Status] Alt: %f" %msg.alt)
 
-        global current_altitude
+	global current_altitude
 	global previous_altitude
 
 	previous_altitude = current_altitude
-        current_altitude = msg.alt
+	current_altitude = msg.alt
 
 #------------------------------------------------------------------------------------
 def handle_attitude(msg):
@@ -373,17 +372,17 @@ def read_loop():
 		# handle the message based on its type
 		msg_type = msg.get_type()
 		if msg_type == "BAD_DATA":
-        		if mavutil.all_printable(msg.data):
-		             	sys.stdout.write(msg.data)
-		                sys.stdout.flush()
+			if mavutil.all_printable(msg.data):
+				sys.stdout.write(msg.data)
+				sys.stdout.flush()
 		elif msg_type == "RC_CHANNELS":
 			handle_rc_raw(msg)
 		elif msg_type == "HEARTBEAT":
-		        handle_heartbeat(msg)
+			handle_heartbeat(msg)
 		elif msg_type == "VFR_HUD":
-		        handle_hud(msg)
+			handle_hud(msg)
 		elif msg_type == "ATTITUDE":
-	        	handle_attitude(msg)
+			handle_attitude(msg)
 		elif msg_type == "NAV_CONTROLLER_OUTPUT":
 			handle_target(msg)
 
@@ -416,10 +415,10 @@ def calculate_distance():
 	alt_distance = (current_altitude - 594)/594
 	print("### Current altitude: %f, altitude distance: %f ###" %(current_altitude, alt_distance))
 	
-        if get_target_flight_mode == 14:
-                flight_distance = 1
-        elif get_target_flight_mode != 14:
-                flight_distance = -1
+	if get_target_flight_mode == 14:
+		flight_distance = 1
+	elif get_target_flight_mode != 14:
+		flight_distance = -1
 
 	"""
 	if current_flight_mode == "FLIP":
@@ -444,29 +443,29 @@ def calculate_distance():
 	
 	# if 0: up / 1: down
 	# 1) RC: up, Alt: up, Dist: up --> Action: down direction
-        if (previous_altitude < current_altitude and abs(temp_alt_distance) < abs(alt_distance)) and target_throttle > 1500:
-                target_alt_direction = 1
+	if (previous_altitude < current_altitude and abs(temp_alt_distance) < abs(alt_distance)) and target_throttle > 1500:
+		target_alt_direction = 1
         # 2) RC: up, Alt: down, Dist: up --> Action: up direction
-        elif (previous_altitude > current_altitude and abs(temp_alt_distance) < abs(alt_distance)) and target_throttle > 1500:
-                target_alt_direction = 0
+	elif (previous_altitude > current_altitude and abs(temp_alt_distance) < abs(alt_distance)) and target_throttle > 1500:
+		target_alt_direction = 0
 	# 3) RC: up, Alt: down, Dist: down --> Action: down direction
 	elif (previous_altitude > current_altitude and abs(temp_alt_distance) > abs(alt_distance)) and target_throttle > 1500:
-                target_alt_direction = 1
+		target_alt_direction = 1
 	# 4) RC: up, Alt: up, Dist: down --> Action: up direction
-        elif (previous_altitude < current_altitude and abs(temp_alt_distance) > abs(alt_distance)) and target_throttle > 1500:
-                target_alt_direction = 0	
+	elif (previous_altitude < current_altitude and abs(temp_alt_distance) > abs(alt_distance)) and target_throttle > 1500:
+		target_alt_direction = 0	
 	# 5) RC: down, Alt: up, Dist: up --> Action: down direction
-        elif (previous_altitude < current_altitude and abs(temp_alt_distance) < abs(alt_distance)) and target_throttle < 1500:
-                target_alt_direction = 1
+	elif (previous_altitude < current_altitude and abs(temp_alt_distance) < abs(alt_distance)) and target_throttle < 1500:
+		target_alt_direction = 1
 	# 6) RC: down, Alt: up, Dist: down --> Action: up direction
-        elif (previous_altitude < current_altitude and abs(temp_alt_distance) > abs(alt_distance)) and target_throttle < 1500:
-                target_alt_direction = 0
+	elif (previous_altitude < current_altitude and abs(temp_alt_distance) > abs(alt_distance)) and target_throttle < 1500:
+		target_alt_direction = 0
 	# 7) RC: down, Alt: down, Dist: down --> Action: down direction
-        elif (previous_altitude > current_altitude and abs(temp_alt_distance) > abs(alt_distance)) and target_throttle < 1500:
-                target_alt_direction = 1
+	elif (previous_altitude > current_altitude and abs(temp_alt_distance) > abs(alt_distance)) and target_throttle < 1500:
+		target_alt_direction = 1
 	# 8) RC: down, Alt: down, Dist: up --> Action: up direction
-        elif (previous_altitude > current_altitude and abs(temp_alt_distance) < abs(alt_distance)) and target_throttle < 1500:
-                target_alt_direction = 0
+	elif (previous_altitude > current_altitude and abs(temp_alt_distance) < abs(alt_distance)) and target_throttle < 1500:
+		target_alt_direction = 0
 
 
 	"""
@@ -523,7 +522,7 @@ def throttle_th():
 	global goal_throttle
 
 	while True:
-        	set_rc_channel_pwm(3, goal_throttle)
+		set_rc_channel_pwm(3, goal_throttle)
 		time.sleep(0.2)
 			
 
@@ -588,11 +587,11 @@ def randomly_pick_up_cmd(mandatory):
 			time.sleep(3)
 					
 		        # Log mutated user command
-		        print_cmd = ""
-		        print_cmd += "throttle"
-		        print_cmd += " "
-		        print_cmd += str(goal_throttle)
-		        print_cmd += "\n"
+			print_cmd = ""
+			print_cmd += "throttle"
+			print_cmd += " "
+			print_cmd += str(goal_throttle)
+			print_cmd += "\n"
 			write_log(print_cmd)
 
 			goal_throttle = 1500
@@ -617,9 +616,9 @@ def randomly_pick_up_cmd(mandatory):
 			global drone_status
 
                         # Conduct takeoff when the drone is standby status
-                        if drone_status != 3:
-                                print("Drone is not standby status")
-                                continue
+			if drone_status != 3:
+				print("Drone is not standby status")
+				continue
 
 
 			rand_alt = random.randint(1, 20)
@@ -651,10 +650,10 @@ def randomly_pick_up_cmd(mandatory):
 			while(True):
 				print("cur_alt: %f, target_alt: %f" %(current_altitude, (home_altitude + rand_alt)))
 
-	                        if current_altitude >= (home_altitude + rand_alt):
+				if current_altitude >= (home_altitude + rand_alt):
 					takeoff = 1
-                	                print("Command is completed (target altitude: %d)" % current_altitude)
-                        	        break
+					print("Command is completed (target altitude: %d)" % current_altitude)
+					break
 			
 				time.sleep(0.1)
 
@@ -673,7 +672,7 @@ def randomly_pick_up_cmd(mandatory):
 			print("[3] Random user command: change flight mode")
 			
 			if get_target_flight_mode == -1:
-	        		rand_fligh_mode = random.randint(1, 20)
+				rand_fligh_mode = random.randint(1, 20)
 			elif get_target_flight_mode != -1:
 				rand_fligh_mode = get_target_flight_mode	
 
@@ -702,12 +701,12 @@ def randomly_pick_up_cmd(mandatory):
 				time.sleep(3)
 				
 	                       	# Log mutated user command
-	                        print_cmd = ""
-	                        print_cmd += "mode"
-	                        print_cmd += " "
-	                        print_cmd += str(2)
-	                        print_cmd += "\n"
-	                        write_log(print_cmd)
+				print_cmd = ""
+				print_cmd += "mode"
+				print_cmd += " "
+				print_cmd += str(2)
+				print_cmd += "\n"
+				write_log(print_cmd)
 
 			# if Flip mode is triggered at least one time, keep trigger the Flip mode
 			if flight_distance == 1:
@@ -720,7 +719,7 @@ def randomly_pick_up_cmd(mandatory):
 	            		master.target_system,
 	            		mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED,
 	            		rand_fligh_mode)
-	        	print("Selected mode id: %d" % rand_fligh_mode)
+			print("Selected mode id: %d" % rand_fligh_mode)
 			"""
 			# Check ACK
 			ack = False
@@ -733,12 +732,12 @@ def randomly_pick_up_cmd(mandatory):
 			time.sleep(2)
 
 			# Log mutated user command
-                        print_cmd = ""
-                        print_cmd += "mode"
-                        print_cmd += " "
-                        print_cmd += str(rand_fligh_mode)
-                        print_cmd += "\n"
-                        write_log(print_cmd)		
+			print_cmd = ""
+			print_cmd += "mode"
+			print_cmd += " "
+			print_cmd += str(rand_fligh_mode)
+			print_cmd += "\n"
+			write_log(print_cmd)		
 
 			# --- End to change flight mode ---
                         #t1 = time.clock() - t0
@@ -756,16 +755,16 @@ def randomly_pick_up_cmd(mandatory):
 			#time.sleep(1)
 			
 			# Log mutated user command
-                        print_cmd = ""
-                        print_cmd += "roll"
-                        print_cmd += " "
-                        print_cmd += str(rand_roll)
-                        print_cmd += "\n"
-                        write_log(print_cmd)
+			print_cmd = ""
+			print_cmd += "roll"
+			print_cmd += " "
+			print_cmd += str(rand_roll)
+			print_cmd += "\n"
+			write_log(print_cmd)
 			
 
 		# Call distance metric function
-                calculate_distance()
+		calculate_distance()
 
 
 	for x in range(1, 2):
@@ -817,7 +816,7 @@ def randomly_pick_up_cmd(mandatory):
 						     2,0,0,0,0,0,
 						     lat,lon,wp_alt)
 			wp_cnt = wp_cnt + 1
-	    		print("Sent change waypoint command (lat:%f, lon:%f, alt:%f)" % (lat, lon, wp_alt))
+			print("Sent change waypoint command (lat:%f, lon:%f, alt:%f)" % (lat, lon, wp_alt))
 	
 			# In order to prevent crash the drone (04/11/2020)
 			time.sleep(2)
@@ -825,74 +824,74 @@ def randomly_pick_up_cmd(mandatory):
 			time.sleep(2)
 
                         # Log mutated user command
-                        print_cmd = ""
-                        print_cmd += "add_waypoint"
-                        print_cmd += " "
-                        print_cmd += str(lat)
+			print_cmd = ""
+			print_cmd += "add_waypoint"
+			print_cmd += " "
+			print_cmd += str(lat)
 			print_cmd += " "
 			print_cmd += str(lon)
 			print_cmd += " "
 			print_cmd += str(wp_alt)
-                        print_cmd += "\n"
-                        write_log(print_cmd)
+			print_cmd += "\n"
+			write_log(print_cmd)
 
 		#-------------------------------------------------------
-        	elif num == 7:
+		elif num == 7:
 			print("# Random user command: change pitch angle")
 	                # Change pitch
-	                rand_pitch = random.randint(1000, 2000)
-	                print("Target pitch value: %d" %rand_pitch)
-	                set_rc_channel_pwm(2, rand_pitch)
-	                time.sleep(1.5)
-	                set_rc_channel_pwm(2, 1500)
-
-                        # Log mutated user command
-                        print_cmd = ""
-                        print_cmd += "pitch"
-                        print_cmd += " "
-                        print_cmd += str(rand_pitch)
-                        print_cmd += "\n"
-                        write_log(print_cmd)
-
-		#-------------------------------------------------------
-	        elif num == 8:
-	                print("# Random user command: change yaw angle")
-	                # Change yaw
-	                rand_yaw = random.randint(1000, 2000)
-	                print("Target yaw value: %d" %rand_yaw)
-	                set_rc_channel_pwm(4, rand_yaw)
-	                time.sleep(1.5)
-	                set_rc_channel_pwm(4, 1500)
+			rand_pitch = random.randint(1000, 2000)
+			print("Target pitch value: %d" %rand_pitch)
+			set_rc_channel_pwm(2, rand_pitch)
+			time.sleep(1.5)
+			set_rc_channel_pwm(2, 1500)
 
 			# Log mutated user command
-                        print_cmd = ""
-                        print_cmd += "yaw"
-                        print_cmd += " "
-                        print_cmd += str(rand_yaw)
-                        print_cmd += "\n"
-                        write_log(print_cmd)
+			print_cmd = ""
+			print_cmd += "pitch"
+			print_cmd += " "
+			print_cmd += str(rand_pitch)
+			print_cmd += "\n"
+			write_log(print_cmd)
+
+		#-------------------------------------------------------
+		elif num == 8:
+			print("# Random user command: change yaw angle")
+			# Change yaw
+			rand_yaw = random.randint(1000, 2000)
+			print("Target yaw value: %d" %rand_yaw)
+			set_rc_channel_pwm(4, rand_yaw)
+			time.sleep(1.5)
+			set_rc_channel_pwm(4, 1500)
+
+			# Log mutated user command
+			print_cmd = ""
+			print_cmd += "yaw"
+			print_cmd += " "
+			print_cmd += str(rand_yaw)
+			print_cmd += "\n"
+			write_log(print_cmd)
 
 		#-------------------------------------------------------
 		elif num == 9:
 			print("# Random user command: Loiter around this waypoint an unlimited amount of time");		
 			nav_loiter_unlim_alt = random.randint(50, 100)
-                        nav_loiter_unlim_lat = -35+random.uniform(0, 2)
-                        nav_loiter_unlim_lon = 149+random.uniform(0, 2)
+			nav_loiter_unlim_lat = -35+random.uniform(0, 2)
+			nav_loiter_unlim_lon = 149+random.uniform(0, 2)
 
 			master.mav.command_long_send(master.target_system, master.target_component,
                                        mavutil.mavlink.MAV_CMD_NAV_LOITER_UNLIM, 0, 0, 0, 0, 5, 0, nav_loiter_unlim_lat, nav_loiter_unlim_lon, nav_loiter_unlim_alt)			
 			
 			# Log mutated user command
-                        print_cmd = ""
-                        print_cmd += "nav_loiter_unlim"
+			print_cmd = ""
+			print_cmd += "nav_loiter_unlim"
 			print_cmd += " "
-                        print_cmd += str(nav_loiter_unlim_lat)
-                        print_cmd += " "
-                        print_cmd += str(nav_loiter_unlim_lon)
-                        print_cmd += " "
-                        print_cmd += str(nav_loiter_unlim_alt)
-                        print_cmd += "\n"
-                        write_log(print_cmd)
+			print_cmd += str(nav_loiter_unlim_lat)
+			print_cmd += " "
+			print_cmd += str(nav_loiter_unlim_lon)
+			print_cmd += " "
+			print_cmd += str(nav_loiter_unlim_alt)
+			print_cmd += "\n"
+			write_log(print_cmd)
                         
 			
 		# Call distance metric function
